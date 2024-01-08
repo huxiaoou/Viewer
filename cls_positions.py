@@ -1,4 +1,6 @@
 import pandas as pd
+import threading
+import msvcrt
 from tqsdk import TqApi, TqAuth
 from husfort.qutility import SFG, SFR
 from husfort.qinstruments import CInstrumentInfoTable
@@ -96,6 +98,7 @@ class CManagerViewer(object):
                 cost_price=getattr(r, "aver_cost_price"),
                 base_price=getattr(r, "last_market_price"),
             ))
+        self.user_choice: str = ""
 
     @property
     def positions_size(self) -> int:
@@ -104,6 +107,14 @@ class CManagerViewer(object):
     @staticmethod
     def color_msg(msg: str, val: float):
         return SFR(msg) if val >= 0 else SFG(msg)
+
+    def read_user_choice(self):
+        while True:
+            if msvcrt.kbhit() and ord(msvcrt.getch()) == ord('q'):
+                self.user_choice = "q"
+                break
+        print("user choice to quit")
+        return 0
 
     def print_positions(self):
         sep_b = "=" * 102
@@ -153,12 +164,22 @@ class CManagerViewer(object):
         print(sep_b)
         print("\033[A" * (self.positions_size + 6), end="\r")
 
-    def main(self, tq_account: str, tq_password: str):
+    def get_md(self, tq_account: str, tq_password: str):
         contracts = [pos.contract.tq_id for pos in self.positions]
         api = TqApi(auth=TqAuth(user_name=tq_account, password=tq_password))
         quotes = [api.get_quote(contract) for contract in contracts]
-        while True:
+        while self.user_choice != "q":
             api.wait_update()
             for pos, quote in zip(self.positions, quotes):
                 pos.last_mkt_prc = quote.last_price
             self.print_positions()
+        return 0
+
+    def main(self, tq_account: str, tq_password: str):
+        t0 = threading.Thread(target=self.get_md, args=(tq_account, tq_password))
+        t0.start()
+        t1 = threading.Thread(target=self.read_user_choice)
+        t1.start()
+        t0.join()
+        t1.join()
+        return 0
