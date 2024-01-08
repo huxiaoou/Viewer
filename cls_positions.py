@@ -10,7 +10,7 @@ class CContract(object):
     def __init__(self, contract: str, instru_info_tab: CInstrumentInfoTable):
         self.__contract: str = contract
         self.__instrument: str = instru_info_tab.parse_instrument_from_contract(contract)
-        self.__exchange: str = instru_info_tab.get_exchangeId(self.__instrument)
+        self.__exchange: str = instru_info_tab.get_exchange_id(self.__instrument)
         self.__contract_multiplier: int = instru_info_tab.get_multiplier(self.__instrument)
 
     @property
@@ -33,7 +33,7 @@ class CPosition(object):
         self._qty = qty
         self._cost_price: float = cost_price
         self._base_price: float = base_price
-        self._last_mkt_prc: float | None = None
+        self._last_mkt_prc: float = base_price
 
     @property
     def contract(self) -> CContract:
@@ -61,7 +61,8 @@ class CPosition(object):
 
     @last_mkt_prc.setter
     def last_mkt_prc(self, prc: float):
-        self._last_mkt_prc = prc
+        if not pd.isna(prc):
+            self._last_mkt_prc = prc
 
     @property
     def cost_val(self) -> float:
@@ -173,13 +174,12 @@ class CManagerViewer(object):
             for pos, quote in zip(self.positions, quotes):
                 pos.last_mkt_prc = quote.last_price
             self.print_positions()
+        api.close()
         return 0
 
     def main(self, tq_account: str, tq_password: str):
         t0 = threading.Thread(target=self.get_md, args=(tq_account, tq_password))
-        t0.start()
         t1 = threading.Thread(target=self.read_user_choice)
-        t1.start()
-        t0.join()
-        t1.join()
+        t0.start(), t1.start()
+        t0.join(), t1.join()
         return 0
