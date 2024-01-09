@@ -141,6 +141,7 @@ class CManagerViewer(object):
         return 0
 
     def print_positions(self):
+        print("\033[?25l", end="")  # hide cursor
         sep_b = "=" * 102
         sep_s = "-" * 102
 
@@ -201,6 +202,7 @@ class CManagerViewer(object):
             self.pos_and_quotes_df.sort_values(by="pos", ascending=False, inplace=True)
             self.print_positions()
         self.move_cursor_to_tail()
+        print("\033[?25h", end="")  # show cursor
         api.close()
         return 0
 
