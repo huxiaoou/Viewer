@@ -193,7 +193,7 @@ class CManagerViewer(object):
         contracts = [pos.contract.tq_id for pos in self.positions]
         api = TqApi(auth=TqAuth(user_name=tq_account, password=tq_password))
         quotes = [api.get_quote(contract) for contract in contracts]
-        self.pos_and_quotes_df = pd.DataFrame({"pos": self.positions, "quote":quotes})
+        self.pos_and_quotes_df = pd.DataFrame({"pos": self.positions, "quote": quotes})
         while self.user_choice != "q":
             api.wait_update()
             for pos, quote in zip(self.pos_and_quotes_df["pos"], self.pos_and_quotes_df["quote"]):
