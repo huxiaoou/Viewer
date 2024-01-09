@@ -35,6 +35,21 @@ class CPosition(object):
         self._base_price: float = base_price
         self._last_mkt_prc: float = base_price
 
+    def __eq__(self, other):
+        return self.float_pnl_increment == other.float_pnl_increment
+
+    def __gt__(self, other):
+        return self.float_pnl_increment > other.float_pnl_increment
+
+    def __lt__(self, other):
+        return self.float_pnl_increment < other.float_pnl_increment
+
+    def __ge__(self, other):
+        return self.float_pnl_increment >= other.float_pnl_increment
+
+    def __le__(self, other):
+        return self.float_pnl_increment <= other.float_pnl_increment
+
     @property
     def contract(self) -> CContract:
         return self._contract
@@ -100,6 +115,7 @@ class CManagerViewer(object):
                 base_price=getattr(r, "last_market_price"),
             ))
         self.user_choice: str = ""
+        self.pos_and_quotes_df = pd.DataFrame()
 
     @property
     def positions_size(self) -> int:
@@ -109,12 +125,19 @@ class CManagerViewer(object):
     def color_msg(msg: str, val: float):
         return SFR(msg) if val >= 0 else SFG(msg)
 
+    def move_cursor_to_head(self):
+        print("\033[A" * (self.positions_size + 6), end="\r")
+        return 0
+
+    def move_cursor_to_tail(self):
+        print("\033[B" * (self.positions_size + 6), end="\r")
+        return 0
+
     def read_user_choice(self):
         while True:
             if msvcrt.kbhit() and ord(msvcrt.getch()) == ord('q'):
                 self.user_choice = "q"
                 break
-        print("user choice to quit")
         return 0
 
     def print_positions(self):
@@ -137,7 +160,7 @@ class CManagerViewer(object):
         print(sep_s)
 
         qty, cost_val, base_val, mkt_val, float_pnl, increment = 0, 0.0, 0.0, 0.0, 0.0, 0.0
-        for pos in self.positions:
+        for pos in self.pos_and_quotes_df["pos"]:
             qty += pos.qty
             cost_val += pos.cost_val
             base_val += pos.base_val
@@ -163,17 +186,21 @@ class CManagerViewer(object):
                f"{float_pnl:>10.2f}{increment:>10.2f}")
         print(self.color_msg(msg, increment))
         print(sep_b)
-        print("\033[A" * (self.positions_size + 6), end="\r")
+        self.move_cursor_to_head()
+        return 0
 
     def get_md(self, tq_account: str, tq_password: str):
         contracts = [pos.contract.tq_id for pos in self.positions]
         api = TqApi(auth=TqAuth(user_name=tq_account, password=tq_password))
         quotes = [api.get_quote(contract) for contract in contracts]
+        self.pos_and_quotes_df = pd.DataFrame({"pos": self.positions, "quote":quotes})
         while self.user_choice != "q":
             api.wait_update()
-            for pos, quote in zip(self.positions, quotes):
+            for pos, quote in zip(self.pos_and_quotes_df["pos"], self.pos_and_quotes_df["quote"]):
                 pos.last_mkt_prc = quote.last_price
+            self.pos_and_quotes_df.sort_values(by="pos", ascending=False, inplace=True)
             self.print_positions()
+        self.move_cursor_to_tail()
         api.close()
         return 0
 
