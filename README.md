@@ -5,7 +5,7 @@
 ## 用法示例
 
 ```powershell
-python main.py --src positions_P01S03_HXO_20240108-TS2.csv --account user_account --password user_password
+python main.py --src positions_P01S03_HXO_20240108-TS2.csv --account user_account --password user_password --info InstrumentInfoPath
 ```
 
 ## 说明
