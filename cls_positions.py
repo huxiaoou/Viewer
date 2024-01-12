@@ -25,6 +25,15 @@ class CContract(object):
     def tq_id(self) -> str:
         return f"{self.__exchange}.{self.__contract}"
 
+    def __gt__(self, other: "CContract"):
+        return self.__contract > other.__contract
+
+    def __repr__(self):
+        return (f"Contract(contract={self.__contract}, "
+                f"instrument={self.__instrument}, "
+                f"exchange={self.__exchange}), "
+                f"multiplier={self.__contract_multiplier})")
+
 
 class CPosition(object):
     def __init__(self, contract: CContract, direction: int, qty: int, cost_price: float, base_price: float):
@@ -35,20 +44,21 @@ class CPosition(object):
         self._base_price: float = base_price
         self._last_mkt_prc: float = base_price
 
-    def __eq__(self, other):
+    def __eq__(self, other: "CPosition"):
         return self.float_pnl_increment == other.float_pnl_increment
 
-    def __gt__(self, other):
-        return self.float_pnl_increment > other.float_pnl_increment
-
-    def __lt__(self, other):
-        return self.float_pnl_increment < other.float_pnl_increment
-
-    def __ge__(self, other):
-        return self.float_pnl_increment >= other.float_pnl_increment
-
-    def __le__(self, other):
-        return self.float_pnl_increment <= other.float_pnl_increment
+    def __gt__(self, other: "CPosition"):
+        if self.float_pnl_increment > other.float_pnl_increment:
+            return True
+        elif self.float_pnl_increment < other.float_pnl_increment:
+            return False
+        else:
+            if self.contract > other.contract:
+                return True
+            elif self.contract < other.contract:
+                return False
+            else:
+                return self.direction > other.direction
 
     @property
     def contract(self) -> CContract:
