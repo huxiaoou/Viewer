@@ -3,7 +3,7 @@ import pandas as pd
 from dataclasses import dataclass, astuple
 from rich.live import Live
 from rich.table import Table
-from rich.box import SQUARE
+from rich.box import HORIZONTALS
 from tqsdk import TqApi, TqAuth
 from husfort.qutility import SFG
 from husfort.qinstruments import CInstrumentInfoTable
@@ -190,7 +190,7 @@ class CManagerViewer(object):
         table = Table(
             title=f"\n[bold #00CED1]PNL INCREMENT - {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}",
             caption="[bold #00CED1]Press Ctrl + C to quit ...",
-            box=SQUARE, show_lines=True,
+            box=HORIZONTALS,
             header_style="white on #8B4513",
             footer_style="white",
             show_footer=True,
