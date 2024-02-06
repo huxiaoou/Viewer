@@ -1,7 +1,9 @@
 import datetime as dt
 import pandas as pd
+from dataclasses import dataclass, astuple
 from rich.live import Live
 from rich.table import Table
+from rich.box import SQUARE
 from tqsdk import TqApi, TqAuth
 from husfort.qutility import SFG
 from husfort.qinstruments import CInstrumentInfoTable
@@ -111,6 +113,19 @@ class CPosition(object):
         return self.mkt_val - self.base_val
 
 
+@dataclass
+class CRow(object):
+    contract: str
+    dir: str
+    qty: str
+    base: str
+    mkt: str
+    base_val: str
+    mkt_val: str
+    float_pnl: str
+    increment: str
+
+
 class CManagerViewer(object):
     def __init__(self, position_file_path: str, instru_info_tab: CInstrumentInfoTable):
         print(f"{dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} -     "
@@ -133,59 +148,64 @@ class CManagerViewer(object):
     def positions_size(self) -> int:
         return len(self.positions)
 
-    def __generate_table(self):
-        table = Table(title=f"\nPNL INCREMENT - {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}",
-                      caption="[green]Press Ctrl + C to quit ...")
-        table.add_column(header="CONTRACT", justify="right")
-        table.add_column(header="DIR", justify="right")
-        table.add_column(header="QTY", justify="right")
-        table.add_column(header="COST", justify="right")
-        table.add_column(header="BASE", justify="right")
-        table.add_column(header="MKT", justify="right")
-        table.add_column(header="COST", justify="right")
-        table.add_column(header="BASE", justify="right")
-        table.add_column(header="MKT", justify="right")
-        table.add_column(header="FLOAT", justify="right")
-        table.add_column(header="INCREMENT", justify="right")
-
+    def __update_rows(self) -> tuple[list[CRow], CRow]:
         qty = 0
-        cost_val, base_val, mkt_val = 0.0, 0.0, 0.0
+        base_val, mkt_val = 0.0, 0.0
         float_pnl, increment = 0.0, 0.0
+        rows = []
         for pos in self.pos_and_quotes_df["pos"]:
             qty += pos.qty
-            cost_val += pos.cost_val
             base_val += pos.base_val
             mkt_val += pos.mkt_val
             float_pnl += pos.float_pnl
             increment += pos.float_pnl_increment
-            msg = (
-                pos.contract.contract,
-                str(pos.direction),
-                str(pos.qty),
-                f"{pos.cost_price:>10.2f}",
-                f"{pos.base_price:>10.2f}",
-                f"{pos.last_mkt_prc:>10.2f}",
-                f"{pos.cost_val:>12.2f}",
-                f"{pos.base_val:>12.2f}",
-                f"{pos.mkt_val:>12.2f}",
-                f"{pos.float_pnl:>10.2f}",
-                f"{pos.float_pnl_increment:.2f}",
-            )
-            table.add_row(*msg)
-        msg = (
-            'SUM',
-            '-',
-            f"{qty:4d}",
-            '-',
-            '-',
-            '-',
-            f"{cost_val:.2f}",
-            f"{base_val:.2f}",
-            f"{mkt_val:.2f}",
-            f"{float_pnl:.2f}",
-            f"{increment:.2f}",
+            color_font = "red" if pos.float_pnl_increment >= 0 else "green"
+            rows.append(CRow(
+                contract=f"[{color_font}]{pos.contract.contract}",
+                dir=f"[{color_font}]{pos.direction}",
+                qty=f"[{color_font}]{pos.qty}",
+                base=f"[{color_font}]{pos.base_price:>10.2f}",
+                mkt=f"[{color_font}]{pos.last_mkt_prc:>10.2f}",
+                base_val=f"[{color_font}]{pos.base_val:>12.2f}",
+                mkt_val=f"[{color_font}]{pos.mkt_val:>12.2f}",
+                float_pnl=f"[{color_font}]{pos.float_pnl:>10.2f}",
+                increment=f"[white on {color_font}]{pos.float_pnl_increment:10.2f}",
+            ))
+        color_font = "red" if increment >= 0 else "green"
+        footer = CRow(
+            contract=f'[{color_font}]SUM',
+            dir=f'[{color_font}]-',
+            qty=f"[{color_font}]{qty:4d}",
+            base=f'[{color_font}]-',
+            mkt=f'[{color_font}]-',
+            base_val=f"[{color_font}]{base_val:.2f}",
+            mkt_val=f"[{color_font}]{mkt_val:.2f}",
+            float_pnl=f"[{color_font}]{float_pnl:.2f}",
+            increment=f"[white on {color_font}]{increment:10.2f}",
         )
-        table.add_row(*msg)
+        return rows, footer
+
+    def __generate_table(self):
+        rows, footer = self.__update_rows()
+        table = Table(
+            title=f"\n[bold #00CED1]PNL INCREMENT - {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}",
+            caption="[bold #00CED1]Press Ctrl + C to quit ...",
+            box=SQUARE, show_lines=True,
+            header_style="white on #8B4513",
+            footer_style="white",
+            show_footer=True,
+        )
+        table.add_column(header="CONTRACT", justify="right", footer=footer.contract)
+        table.add_column(header="DIR", justify="right", footer=footer.dir)
+        table.add_column(header="QTY", justify="right", footer=footer.qty)
+        table.add_column(header="BASE", justify="right", footer=footer.base)
+        table.add_column(header="MKT", justify="right", footer=footer.mkt)
+        table.add_column(header="BASE-VAL", justify="right", footer=footer.base_val)
+        table.add_column(header="MKT-VAL", justify="right", footer=footer.mkt_val)
+        table.add_column(header="FLOAT-PNL", justify="right", footer=footer.float_pnl)
+        table.add_column(header="INCREMENT", justify="right", footer=footer.increment)
+        for row in rows:
+            table.add_row(*astuple(row))
         return table
 
     def create_quotes_df(self, tq_account: str, tq_password: str) -> TqApi:
