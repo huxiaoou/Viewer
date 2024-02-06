@@ -1,8 +1,9 @@
+import datetime as dt
 import pandas as pd
-import threading
-import msvcrt
+from rich.live import Live
+from rich.table import Table
 from tqsdk import TqApi, TqAuth
-from husfort.qutility import SFG, SFR
+from husfort.qutility import SFG
 from husfort.qinstruments import CInstrumentInfoTable
 
 
@@ -112,7 +113,8 @@ class CPosition(object):
 
 class CManagerViewer(object):
     def __init__(self, position_file_path: str, instru_info_tab: CInstrumentInfoTable):
-        print(f"... loading data from {position_file_path}")
+        print(f"{dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} -     "
+              f"INFO - loading data from {SFG(position_file_path)}")
         position_df = pd.read_csv(position_file_path)
         self.positions: list[CPosition] = []
         for _, r in position_df.iterrows():
@@ -131,46 +133,24 @@ class CManagerViewer(object):
     def positions_size(self) -> int:
         return len(self.positions)
 
-    @staticmethod
-    def color_msg(msg: str, val: float):
-        return SFR(msg) if val >= 0 else SFG(msg)
+    def __generate_table(self):
+        table = Table(title=f"\nPNL INCREMENT - {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}",
+                      caption="[green]Press Ctrl + C to quit ...")
+        table.add_column(header="CONTRACT", justify="right")
+        table.add_column(header="DIR", justify="right")
+        table.add_column(header="QTY", justify="right")
+        table.add_column(header="COST", justify="right")
+        table.add_column(header="BASE", justify="right")
+        table.add_column(header="MKT", justify="right")
+        table.add_column(header="COST", justify="right")
+        table.add_column(header="BASE", justify="right")
+        table.add_column(header="MKT", justify="right")
+        table.add_column(header="FLOAT", justify="right")
+        table.add_column(header="INCREMENT", justify="right")
 
-    def move_cursor_to_head(self):
-        print("\033[A" * (self.positions_size + 6), end="\r")
-        return 0
-
-    def move_cursor_to_tail(self):
-        print("\033[B" * (self.positions_size + 6), end="\r")
-        return 0
-
-    def read_user_choice(self):
-        while True:
-            if msvcrt.kbhit() and ord(msvcrt.getch()) == ord('q'):
-                self.user_choice = "q"
-                break
-        return 0
-
-    def print_positions(self):
-        print("\033[?25l", end="")  # hide cursor
-        sep_b = "=" * 102
-        sep_s = "-" * 102
-
-        print(sep_b)
-        head = (f"{'CONTRACT':>8s}"
-                f"{'DIR':>4s}"
-                f"{'QTY':>4s}"
-                f"{'COST':>10s}"
-                f"{'BASE':>10s}"
-                f"{'MKT':>10s}"
-                f"{'COST-VAL':>12s}"
-                f"{'BASE-VAL':>12s}"
-                f"{'MKT-VAL':>12s}"
-                f"{'FLOAT':>10s}"
-                f"{'INCREMENT':>10s}")
-        print(head)
-        print(sep_s)
-
-        qty, cost_val, base_val, mkt_val, float_pnl, increment = 0, 0.0, 0.0, 0.0, 0.0, 0.0
+        qty = 0
+        cost_val, base_val, mkt_val = 0.0, 0.0, 0.0
+        float_pnl, increment = 0.0, 0.0
         for pos in self.pos_and_quotes_df["pos"]:
             qty += pos.qty
             cost_val += pos.cost_val
@@ -178,47 +158,57 @@ class CManagerViewer(object):
             mkt_val += pos.mkt_val
             float_pnl += pos.float_pnl
             increment += pos.float_pnl_increment
-            msg = (f"{pos.contract.contract:>8s}"
-                   f"{pos.direction:>4d}"
-                   f"{pos.qty:>4d}"
-                   f"{pos.cost_price:>10.2f}"
-                   f"{pos.base_price:>10.2f}"
-                   f"{pos.last_mkt_prc:>10.2f}"
-                   f"{pos.cost_val:>12.2f}"
-                   f"{pos.base_val:>12.2f}"
-                   f"{pos.mkt_val:>12.2f}"
-                   f"{pos.float_pnl:>10.2f}"
-                   f"{pos.float_pnl_increment:>10.2f}")
-            print(self.color_msg(msg, pos.float_pnl_increment))
+            msg = (
+                pos.contract.contract,
+                str(pos.direction),
+                str(pos.qty),
+                f"{pos.cost_price:>10.2f}",
+                f"{pos.base_price:>10.2f}",
+                f"{pos.last_mkt_prc:>10.2f}",
+                f"{pos.cost_val:>12.2f}",
+                f"{pos.base_val:>12.2f}",
+                f"{pos.mkt_val:>12.2f}",
+                f"{pos.float_pnl:>10.2f}",
+                f"{pos.float_pnl_increment:.2f}",
+            )
+            table.add_row(*msg)
+        msg = (
+            'SUM',
+            '-',
+            f"{qty:4d}",
+            '-',
+            '-',
+            '-',
+            f"{cost_val:.2f}",
+            f"{base_val:.2f}",
+            f"{mkt_val:.2f}",
+            f"{float_pnl:.2f}",
+            f"{increment:.2f}",
+        )
+        table.add_row(*msg)
+        return table
 
-        print(sep_s)
-        msg = (f"{'SUM':>8s}{qty:>8d}"
-               f"{cost_val:>42.2f}{base_val:>12.2f}{mkt_val:>12.2f}"
-               f"{float_pnl:>10.2f}{increment:>10.2f}")
-        print(self.color_msg(msg, increment))
-        print(sep_b)
-        self.move_cursor_to_head()
-        return 0
-
-    def get_md(self, tq_account: str, tq_password: str):
+    def create_quotes_df(self, tq_account: str, tq_password: str) -> TqApi:
         contracts = [pos.contract.tq_id for pos in self.positions]
         api = TqApi(auth=TqAuth(user_name=tq_account, password=tq_password))
         quotes = [api.get_quote(contract) for contract in contracts]
         self.pos_and_quotes_df = pd.DataFrame({"pos": self.positions, "quote": quotes})
-        while self.user_choice != "q":
-            api.wait_update()
-            for pos, quote in zip(self.pos_and_quotes_df["pos"], self.pos_and_quotes_df["quote"]):
-                pos.last_mkt_prc = quote.last_price
-            self.pos_and_quotes_df.sort_values(by="pos", ascending=False, inplace=True)
-            self.print_positions()
-        self.move_cursor_to_tail()
-        print("\033[?25h", end="")  # show cursor
-        api.close()
+        return api
+
+    def update_from_quotes(self):
+        for pos, quote in zip(self.pos_and_quotes_df["pos"], self.pos_and_quotes_df["quote"]):
+            pos.last_mkt_prc = quote.last_price
+        self.pos_and_quotes_df.sort_values(by="pos", ascending=False, inplace=True)
         return 0
 
     def main(self, tq_account: str, tq_password: str):
-        t0 = threading.Thread(target=self.get_md, args=(tq_account, tq_password))
-        t1 = threading.Thread(target=self.read_user_choice)
-        t0.start(), t1.start()
-        t0.join(), t1.join()
-        return 0
+        api = self.create_quotes_df(tq_account, tq_password)
+        try:
+            with Live(self.__generate_table(), auto_refresh=False, screen=False) as live:
+                while True:
+                    api.wait_update()
+                    self.update_from_quotes()
+                    live.update(self.__generate_table(), refresh=True)
+        except KeyboardInterrupt:
+            print("\n", end="")
+            api.close()
