@@ -151,19 +151,26 @@ class CManagerViewer(object):
     def positions_size(self) -> int:
         return len(self.positions)
 
-    def set_color(self, x: float) -> (str, str, str):
+    @property
+    def new_screen(self) -> bool:
+        return self.config["General"]["NewScreen"] == '1'
+
+    def set_color(self, x: float) -> tuple[str, str, str, str]:
         if x > 0:
-            return (self.config["color"]["OtherFontPos"],
-                    self.config["color"]["PnlFontPos"],
-                    self.config["color"]["PnlBackgroundPos"])
+            return (self.config["Color"]["OtherFontPos"],
+                    self.config["Color"]["OtherBackgroundPos"],
+                    self.config["Color"]["PnlFontPos"],
+                    self.config["Color"]["PnlBackgroundPos"])
         elif x < 0:
-            return (self.config["color"]["OtherFontNeg"],
-                    self.config["color"]["PnlFontNeg"],
-                    self.config["color"]["PnlBackgroundNeg"])
+            return (self.config["Color"]["OtherFontNeg"],
+                    self.config["Color"]["OtherBackgroundNeg"],
+                    self.config["Color"]["PnlFontNeg"],
+                    self.config["Color"]["PnlBackgroundNeg"])
         else:
-            return (self.config["color"]["OtherFontZero"],
-                    self.config["color"]["PnlFontZero"],
-                    self.config["color"]["PnlBackgroundZero"])
+            return (self.config["Color"]["OtherFontZero"],
+                    self.config["Color"]["OtherBackgroundZero"],
+                    self.config["Color"]["PnlFontZero"],
+                    self.config["Color"]["PnlBackgroundZero"])
 
     def __update_rows_and_footer(self) -> tuple[list[CRow], CRow]:
         qty = 0
@@ -176,8 +183,8 @@ class CManagerViewer(object):
             mkt_val += pos.mkt_val
             float_pnl += pos.float_pnl
             increment += pos.float_pnl_increment
-            color_other_font, color_pnl_font, color_pnl_background = self.set_color(pos.float_pnl_increment)
-            sty_other, sty_pnl = f"[{color_other_font}]", f"[{color_pnl_font} on {color_pnl_background}]"
+            color_other_font, color_other_bg, color_pnl_font, color_pnl_bg = self.set_color(pos.float_pnl_increment)
+            sty_other, sty_pnl = f"[{color_other_font} on {color_other_bg}]", f"[{color_pnl_font} on {color_pnl_bg}]"
             rows.append(CRow(
                 contract=f"{sty_other}{pos.contract.contract}",
                 dir=f"{sty_other}{pos.direction}",
@@ -191,8 +198,8 @@ class CManagerViewer(object):
             ))
 
         # set footer
-        color_other_font, color_pnl_font, color_pnl_background = self.set_color(increment)
-        sty_footer = f"[{color_pnl_font} on {color_pnl_background}]"
+        _, _, color_pnl_font, color_pnl_bg = self.set_color(increment)
+        sty_footer = f"[{color_pnl_font} on {color_pnl_bg}]"
         footer = CRow(
             contract=f"{sty_footer}{'SUM'.rjust(8)}",
             dir=f"{sty_footer}{'-'.rjust(3)}",
@@ -212,10 +219,10 @@ class CManagerViewer(object):
             title=f"\nPNL INCREMENT - {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}",
             caption="Press Ctrl + C to quit ...",
             box=HORIZONTALS,
-            title_style=f"bold {self.config['color']['TitleFont']}",
-            caption_style=f"bold italic {self.config['color']['CaptionFont']}",
-            header_style=f"bold {self.config['color']['HeaderFont']} on {self.config['color']['HeaderBackground']}",
-            footer_style=f"{self.config['color']['FooterFont']}",
+            title_style=f"bold {self.config['Color']['TitleFont']}",
+            caption_style=f"bold italic {self.config['Color']['CaptionFont']}",
+            header_style=f"bold {self.config['Color']['HeaderFont']} on {self.config['Color']['HeaderBackground']}",
+            footer_style=f"{self.config['Color']['FooterFont']}",
             show_footer=True,
             padding=0,
         )
@@ -248,7 +255,7 @@ class CManagerViewer(object):
     def main(self, tq_account: str, tq_password: str):
         api = self.create_quotes_df(tq_account, tq_password)
         try:
-            with Live(self.__generate_table(), auto_refresh=False, screen=False) as live:
+            with Live(self.__generate_table(), auto_refresh=False, screen=self.new_screen) as live:
                 while True:
                     api.wait_update()
                     self.update_from_quotes()
