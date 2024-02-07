@@ -1,3 +1,4 @@
+import configparser
 import datetime as dt
 import pandas as pd
 from dataclasses import dataclass, astuple
@@ -127,7 +128,7 @@ class CRow(object):
 
 
 class CManagerViewer(object):
-    def __init__(self, position_file_path: str, instru_info_tab: CInstrumentInfoTable):
+    def __init__(self, position_file_path: str, config_path: str, instru_info_tab: CInstrumentInfoTable):
         print(f"{dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} -     "
               f"INFO - loading data from {SFG(position_file_path)}")
         position_df = pd.read_csv(position_file_path)
@@ -143,10 +144,26 @@ class CManagerViewer(object):
             ))
         self.user_choice: str = ""
         self.pos_and_quotes_df = pd.DataFrame()
+        self.config = configparser.ConfigParser()
+        self.config.read(config_path, encoding="utf-8")
 
     @property
     def positions_size(self) -> int:
         return len(self.positions)
+
+    def set_color(self, x: float) -> (str, str, str):
+        if x > 0:
+            return (self.config["color"]["OtherFontPos"],
+                    self.config["color"]["PnlFontPos"],
+                    self.config["color"]["PnlBackgroundPos"])
+        elif x < 0:
+            return (self.config["color"]["OtherFontNeg"],
+                    self.config["color"]["PnlFontNeg"],
+                    self.config["color"]["PnlBackgroundNeg"])
+        else:
+            return (self.config["color"]["OtherFontZero"],
+                    self.config["color"]["PnlFontZero"],
+                    self.config["color"]["PnlBackgroundZero"])
 
     def __update_rows(self) -> tuple[list[CRow], CRow]:
         qty = 0
@@ -159,40 +176,42 @@ class CManagerViewer(object):
             mkt_val += pos.mkt_val
             float_pnl += pos.float_pnl
             increment += pos.float_pnl_increment
-            color_font = "red" if pos.float_pnl_increment >= 0 else "green"
+            color_other_font, color_pnl_font, color_pnl_background = self.set_color(pos.float_pnl_increment)
             rows.append(CRow(
-                contract=f"[{color_font}]{pos.contract.contract}",
-                dir=f"[{color_font}]{pos.direction}",
-                qty=f"[{color_font}]{pos.qty}",
-                base=f"[{color_font}]{pos.base_price:>10.2f}",
-                mkt=f"[{color_font}]{pos.last_mkt_prc:>10.2f}",
-                base_val=f"[{color_font}]{pos.base_val:>12.2f}",
-                mkt_val=f"[{color_font}]{pos.mkt_val:>12.2f}",
-                float_pnl=f"[{color_font}]{pos.float_pnl:>10.2f}",
-                increment=f"[white on {color_font}]{pos.float_pnl_increment:10.2f}",
+                contract=f"[{color_other_font}]{pos.contract.contract}",
+                dir=f"[{color_other_font}]{pos.direction}",
+                qty=f"[{color_other_font}]{pos.qty}",
+                base=f"[{color_other_font}]{pos.base_price:>10.2f}",
+                mkt=f"[{color_other_font}]{pos.last_mkt_prc:>10.2f}",
+                base_val=f"[{color_other_font}]{pos.base_val:>12.2f}",
+                mkt_val=f"[{color_other_font}]{pos.mkt_val:>12.2f}",
+                float_pnl=f"[{color_other_font}]{pos.float_pnl:>10.2f}",
+                increment=f"[{color_pnl_font} on {color_pnl_background}]{pos.float_pnl_increment:10.2f}",
             ))
-        color_font = "red" if increment >= 0 else "green"
+        color_other_font, color_pnl_font, color_pnl_background = self.set_color(increment)
         footer = CRow(
-            contract=f'[{color_font}]SUM',
-            dir=f'[{color_font}]-',
-            qty=f"[{color_font}]{qty:4d}",
-            base=f'[{color_font}]-',
-            mkt=f'[{color_font}]-',
-            base_val=f"[{color_font}]{base_val:.2f}",
-            mkt_val=f"[{color_font}]{mkt_val:.2f}",
-            float_pnl=f"[{color_font}]{float_pnl:.2f}",
-            increment=f"[white on {color_font}]{increment:10.2f}",
+            contract=f'[{color_other_font}]SUM',
+            dir=f'[{color_other_font}]-',
+            qty=f"[{color_other_font}]{qty:4d}",
+            base=f'[{color_other_font}]-',
+            mkt=f'[{color_other_font}]-',
+            base_val=f"[{color_other_font}]{base_val:.2f}",
+            mkt_val=f"[{color_other_font}]{mkt_val:.2f}",
+            float_pnl=f"[{color_other_font}]{float_pnl:.2f}",
+            increment=f"[{color_pnl_font} on {color_pnl_background}]{increment:10.2f}",
         )
         return rows, footer
 
     def __generate_table(self):
         rows, footer = self.__update_rows()
         table = Table(
-            title=f"\n[bold #00CED1]PNL INCREMENT - {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}",
-            caption="[bold #00CED1]Press Ctrl + C to quit ...",
+            title=f"\nPNL INCREMENT - {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}",
+            caption="Press Ctrl + C to quit ...",
             box=HORIZONTALS,
-            header_style="white on #8B4513",
-            footer_style="white",
+            title_style=f"bold {self.config['color']['TitleFont']}",
+            caption_style=f"bold italic {self.config['color']['CaptionFont']}",
+            header_style=f"bold {self.config['color']['HeaderFont']} on {self.config['color']['HeaderBackground']}",
+            footer_style=f"{self.config['color']['FooterFont']}",
             show_footer=True,
         )
         table.add_column(header="CONTRACT", justify="right", footer=footer.contract)
