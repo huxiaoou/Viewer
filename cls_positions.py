@@ -165,7 +165,7 @@ class CManagerViewer(object):
                     self.config["color"]["PnlFontZero"],
                     self.config["color"]["PnlBackgroundZero"])
 
-    def __update_rows(self) -> tuple[list[CRow], CRow]:
+    def __update_rows_and_footer(self) -> tuple[list[CRow], CRow]:
         qty = 0
         base_val, mkt_val = 0.0, 0.0
         float_pnl, increment = 0.0, 0.0
@@ -177,33 +177,37 @@ class CManagerViewer(object):
             float_pnl += pos.float_pnl
             increment += pos.float_pnl_increment
             color_other_font, color_pnl_font, color_pnl_background = self.set_color(pos.float_pnl_increment)
+            sty_other, sty_pnl = f"[{color_other_font}]", f"[{color_pnl_font} on {color_pnl_background}]"
             rows.append(CRow(
-                contract=f"[{color_other_font}]{pos.contract.contract}",
-                dir=f"[{color_other_font}]{pos.direction}",
-                qty=f"[{color_other_font}]{pos.qty}",
-                base=f"[{color_other_font}]{pos.base_price:>10.2f}",
-                mkt=f"[{color_other_font}]{pos.last_mkt_prc:>10.2f}",
-                base_val=f"[{color_other_font}]{pos.base_val:>12.2f}",
-                mkt_val=f"[{color_other_font}]{pos.mkt_val:>12.2f}",
-                float_pnl=f"[{color_other_font}]{pos.float_pnl:>10.2f}",
-                increment=f"[{color_pnl_font} on {color_pnl_background}]{pos.float_pnl_increment:10.2f}",
+                contract=f"{sty_other}{pos.contract.contract}",
+                dir=f"{sty_other}{pos.direction}",
+                qty=f"{sty_other}{pos.qty}",
+                base=f"{sty_other}{pos.base_price:10.2f}",
+                mkt=f"{sty_other}{pos.last_mkt_prc:10.2f}",
+                base_val=f"{sty_other}{pos.base_val:12.2f}",
+                mkt_val=f"{sty_other}{pos.mkt_val:12.2f}",
+                float_pnl=f"{sty_other}{pos.float_pnl:10.2f}",
+                increment=f"{sty_pnl}{pos.float_pnl_increment:10.2f}",
             ))
+
+        # set footer
         color_other_font, color_pnl_font, color_pnl_background = self.set_color(increment)
+        sty_footer = f"[{color_pnl_font} on {color_pnl_background}]"
         footer = CRow(
-            contract=f'[{color_other_font}]SUM',
-            dir=f'[{color_other_font}]-',
-            qty=f"[{color_other_font}]{qty:4d}",
-            base=f'[{color_other_font}]-',
-            mkt=f'[{color_other_font}]-',
-            base_val=f"[{color_other_font}]{base_val:.2f}",
-            mkt_val=f"[{color_other_font}]{mkt_val:.2f}",
-            float_pnl=f"[{color_other_font}]{float_pnl:.2f}",
-            increment=f"[{color_pnl_font} on {color_pnl_background}]{increment:10.2f}",
+            contract=f"{sty_footer}{'SUM'.rjust(8)}",
+            dir=f"{sty_footer}{'-'.rjust(3)}",
+            qty=f"{sty_footer}{qty:>3d}",
+            base=f"{sty_footer}{'-'.rjust(10)}",
+            mkt=f"{sty_footer}{'-'.rjust(10)}",
+            base_val=f"{sty_footer}{base_val:12.2f}",
+            mkt_val=f"{sty_footer}{mkt_val:12.2f}",
+            float_pnl=f"{sty_footer}{float_pnl:10.2f}",
+            increment=f"{sty_footer}{increment:10.2f}",
         )
         return rows, footer
 
     def __generate_table(self):
-        rows, footer = self.__update_rows()
+        rows, footer = self.__update_rows_and_footer()
         table = Table(
             title=f"\nPNL INCREMENT - {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}",
             caption="Press Ctrl + C to quit ...",
@@ -213,6 +217,7 @@ class CManagerViewer(object):
             header_style=f"bold {self.config['color']['HeaderFont']} on {self.config['color']['HeaderBackground']}",
             footer_style=f"{self.config['color']['FooterFont']}",
             show_footer=True,
+            padding=0,
         )
         table.add_column(header="CONTRACT", justify="right", footer=footer.contract)
         table.add_column(header="DIR", justify="right", footer=footer.dir)
