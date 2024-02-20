@@ -7,7 +7,7 @@ argument_parser.add_argument("--account", type=str, help="TQ-SDK Account")
 argument_parser.add_argument("--password", type=str, help="TQ-SDK Password")
 argument_parser.add_argument("--info", type=str, help="Instrument Info Path")
 args = argument_parser.parse_args()
-config_path = r"E:\Deploy\Projects\Viewer\viewer.ini"
+config_path = r"viewer.ini"
 
 instru_info_tab = CInstrumentInfoTable(args.info, file_type="CSV")
 
